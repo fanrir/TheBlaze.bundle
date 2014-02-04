@@ -1,0 +1,68 @@
+import common as c
+
+HTTP.Headers['User-Agent'] = c.USER_AGENT
+
+####################################################################################################
+def NormalizeURL(url):
+    match = c.RE_INFO.search(url)
+    content_id = match.group('content_id')
+    return c.VIDEO_URL % content_id
+
+
+####################################################################################################
+def MetadataObjectForURL(url):
+   info = c.getVideoInfo(url) 
+   if info == None:
+       return VideoClipObject()
+   else:
+       Log.Debug(info)
+       return VideoClipObject(
+            title = info['title'],
+            summary = info['summary'],
+            thumb=info['thumb_url'],
+            duration = info['duration'],
+            originally_available_at = Datetime.ParseDate(info['date_text']))
+
+####################################################################################################
+def MediaObjectsForURL(url):
+    Log.Debug('MediaObjectsForURL: '+url)
+    info = c.getVideoInfo(url)
+    
+    media_objects = [];
+
+    video_xml = info['video_xml']
+    
+    for urli in video_xml.xpath('//url'):
+        play_url = None
+        play_bitrate = -1
+        play_resolution = -1
+        us = urli.get('playback_scenario')
+        login = urli.get('login')
+        if us[:4] != 'HTTP':
+            Log.Debug(us)
+            match = c.RES_INFO.search(us)
+            Log.Debug(match)
+            play_resolution = int(match.group('resolution'))
+            play_bitrate = int(match.group('bitrate'))
+            Log.Debug("Resolution: [%s]" % play_resolution)
+            play_url = urli.text
+
+            media_objects.append(            
+                MediaObject(
+                    video_codec = VideoCodec.H264,
+                    audio_codec = AudioCodec.AAC,
+                    container = Container.MP4,
+                    bitrate=play_bitrate,
+                    video_resolution=play_resolution,
+                    parts = [PartObject(key=Callback(PlayVideo, url=play_url))],
+                    audio_channels=2,
+                    optimized_for_streaming = True
+                )
+            );
+    return media_objects
+        
+####################################################################################################
+def PlayVideo(url):
+        Log.Debug("PlayVideo: " + url)
+        return Redirect(url)
+

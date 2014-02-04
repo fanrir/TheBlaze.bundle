@@ -1,0 +1,135 @@
+import datetime
+
+BASE_URL        = 'http://www.video.theblaze.com'
+SHOWS_URL       = BASE_URL + '/shows/index.jsp'
+MAIN_URL        = BASE_URL + '/media/video.jsp'
+TOPIC_URL       = BASE_URL + '/gen/multimedia/topic/%s.xml'
+CONTENT_URL     = BASE_URL + '/gen/multimedia/detail/%s/%s/%s/%s.xml'
+SEARCH_URL      = BASE_URL + '/ws/search/merge?'
+VIDEO_URL       = MAIN_URL + '?content_id=%s'
+
+SEARCH_PARMS    = 'result_format=json&sort=desc&sort_type=date&q1_op=AND&q1_gbtax=highlight&bypass=y&ns=43&q2_op=AND'
+SEARCH_C        = '&q1_query=%s&q1_hitsPerPage=%s'
+SEARCH_P        = '&q2_query=%s&q2_event_category=show&q2_hitsPerPage=%s'
+RES_INFO        = Regex('[A-Z]+_(?P<bitrate>[0-9]+)K\_[0-9]+X(?P<resolution>[0-9]+)')
+RE_INFO         = Regex('.*content_id=(?P<content_id>[0-9]+).*')
+USER_AGENT      = 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:10.0.2) Gecko/20100101 Firefox/10.0.2'
+HEADERS         = {'User-agent': USER_AGENT ,'Referer': MAIN_URL}
+
+TITLE        = 'TheBlaze'
+ART          = 'art-default.jpg'
+ICON         = 'icon-default.png'
+ICON_SEARCH  = 'icon-search.png'
+
+HITS_PER_PAGE   = 30
+
+
+###################################################################################################
+def xml_from_string(xmlstring,encoding=None):
+    data = xmlstring.replace('xmlns="http://services.bamnetworks.com/media/types/2.3"','')
+    data = data.replace('xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"','')
+    data = data.replace('xsi:nil="true"','')
+    #Log.Debug(data)
+    return XML.ElementFromString(data)
+
+####################################################################################################
+def getVideoInfo(url):
+    Log.Debug('Regex url: ' + url)
+    match = RE_INFO.search(url)
+    content_id = match.group('content_id')
+    Log.Debug(content_id)
+
+    url = CONTENT_URL % (content_id[-3:][:1],content_id[-2:][:1],content_id[-1:][:1],content_id)
+    Log.Debug('XML URL: ' + url)
+    thumb_url = None
+    video_xml = XML.ElementFromURL(url=url,headers=HEADERS,cacheTime=CACHE_1DAY)
+    for thumbi in video_xml.xpath('//thumbnailScenario'):
+        ttype = thumbi.get('type')
+        if thumb_url is None or ttype == '13' or ttype == '1000':
+            thumb_url = thumbi.text
+    title = video_xml.xpath('//blurb')[0].text
+    description = video_xml.xpath('//big-blurb')[0].text
+    date = video_xml.xpath('//media')[0].get('date')
+    duration_text = video_xml.xpath('//duration')[0].text
+    if duration_text != None:
+        duration_list = duration_text.split(':')
+        duration =  (int(duration_list[0])*3600 + int(duration_list[1])*60 + int(duration_list[2])) * 1000        
+    else:
+        duration_text = video_xml.xpath('//keyword[@type="scheduled_duration"]')[0].get('value')
+        duration = int(duration_text)*60 * 1000
+    
+    info = {
+        'title':title,
+        'summary':description,
+        'thumb_url':thumb_url,
+        'duration':duration,
+        'date_text':date,
+        'url':url,
+        'content_id':content_id,
+        'video_xml':video_xml
+    }
+    return info
+    
+###################################################################################################
+def parse_search(search_text):
+  Log.Debug("Search: " + search_text)
+  items=[]
+  # C=Clips P=Premium
+  sc_limit = HITS_PER_PAGE
+  sp_limit = HITS_PER_PAGE        
+  sc_parms = SEARCH_C % (search_text,sc_limit)
+  sp_parms = SEARCH_P % (search_text,sp_limit)
+  json_url = SEARCH_URL + SEARCH_PARMS + sc_parms + sp_parms
+
+  playlist = JSON.ObjectFromURL(url=json_url,headers=HEADERS,cacheTime=CACHE_1MINUTE)
+  for item in playlist['mediaContent']:
+           try:
+             thumb_url = item['thumbnails'][0]['src']
+           except:
+             thumb_url=None
+           for t in item['thumbnails']:
+                if t['type'] == ('13' or '1000'):
+                    thumb_url = t['src']
+                    break
+                else: 
+                    thumb_url=None
+           if not thumb_url == None and not thumb_url.startswith('http'):
+             thumb_url = BASE_URL+thumb_url
+           #Log.Debug(thumb_url)
+           title = item['blurb']
+           description = ''
+           if item.has_key('bigBlurb'):
+             description = item['bigBlurb']
+           date = Datetime.ParseDate(item['date_added'])
+           duration = None
+           if item.has_key('duration'):
+             duration_text = item['duration']
+             duration_list = duration_text.split(':')
+             duration =  1000 * (int(duration_list[0])*3600 + int(duration_list[1])*60 + int(duration_list[2]))
+           new_content_id = item['contentId']
+           url = VIDEO_URL % new_content_id
+
+           if not 'featureContext' in item:
+                items.append({
+                    'new_content_id':new_content_id,
+                    'url':url,
+                    'title':title,
+                    'summary':description,
+                    'thumb':thumb_url,
+                    'duration':duration,
+                    'originally_available_at':date
+                });                 
+  return items
+  
+###################################################################################################
+def get_clips(oc,items):
+    for item in items:
+        oc.add(VideoClipObject(
+            url = item['url'], 
+            title = item['title'], 
+            summary = item['summary'], 
+            thumb = Resource.ContentsOfURLWithFallback(url=item['thumb'], fallback=ICON),
+            duration = item['duration'],
+            originally_available_at = item['originally_available_at']))
+    return oc
+

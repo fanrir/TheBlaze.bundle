@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Search</key>
+	<dict>
+		<key>TheBlaze</key>
+		<dict>
+		</dict>
+	</dict>
+	<key>URL</key>
+	<dict>
+		<key>TheBlaze</key>
+		<dict>
+		    <key>URLPatterns</key>
+                    <array>
+                       <string>http:\/\/www.video.theblaze.com\/media\/video.jsp\?content_id=[0-9]+.*</string>
+                    </array>
+                    <key>TestURLs</key>
+                    <array>
+                       <string>http://www.video.theblaze.com/media/video.jsp?content_id=28932303&amp;topic_id=24584158</string>
+                       <string>http://www.video.theblaze.com/media/video.jsp?content_id=28932303</string>
+                    </array>
+	
+		</dict>
+	</dict>
+</dict>
+</plist>

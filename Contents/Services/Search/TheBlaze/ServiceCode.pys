@@ -1,0 +1,12 @@
+import common as c
+
+HTTP.Headers["User-Agent"] = c.USER_AGENT
+
+####################################################################################################
+def Search(query):
+    qquery = String.Quote(query, usePlus=True)
+    items = c.parse_search(search_text=qquery)
+    oc = ObjectContainer(title2 = 'Search Results')
+    return c.get_clips(oc,items)
+    
+
